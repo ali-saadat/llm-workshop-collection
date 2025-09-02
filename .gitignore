@@ -68,3 +68,4 @@ logs/
 !.env
 !env_template.txt
 .env.local
+.env
