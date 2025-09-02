@@ -1,0 +1,26 @@
+# 🚀 LLM Workshop Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core HTTP and JSON handling
+requests>=2.31.0
+
+# OpenAI API compatibility
+openai>=1.0.0
+
+# LangChain for agents and tools
+langchain>=0.1.0
+langchain-openai>=0.0.5
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# MCP (Model Context Protocol) packages
+# Note: These packages are optional and may not install on all systems
+# The workshop will work without them, but MCP features will be limited
+mcp>=1.0.0
+# mcp-server-stdio>=1.0.0  # Commented out - may cause installation issues
+# mcp-client-stdio>=1.0.0  # Commented out - may cause installation issues
+
+# Additional useful packages
+typing-extensions>=4.0.0
+asyncio-mqtt>=0.16.0
