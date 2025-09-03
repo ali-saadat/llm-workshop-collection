@@ -50,9 +50,7 @@ print("=" * 60)
 def install_mcp_requirements():
     """Install required packages for MCP development"""
     packages = [
-        "mcp",
-        "mcp-server-stdio",
-        "mcp-client-stdio"
+        "mcp"
     ]
     
     print("📦 Installing MCP packages...")
@@ -68,7 +66,7 @@ def install_mcp_requirements():
 # install_mcp_requirements()
 
 print("💡 If you haven't installed MCP packages yet, run:")
-print("   pip install mcp mcp-server-stdio mcp-client-stdio")
+print("   pip install mcp")
 
 # ============================================================================
 # 🚀 CREATING YOUR FIRST MCP SERVER
@@ -87,30 +85,18 @@ This server provides basic tools for demonstration
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
-from mcp.server import Server
-from mcp.server.models import InitializationOptions
-from mcp.server.stdio import stdio_server
-from mcp.types import (
-    Resource, TextContent, ImageContent, EmbeddedResource,
-    LoggingLevel, Prompt, PromptSegment, Tool, TextContent
-)
+import sys
+from typing import Any, Dict, List
+from datetime import datetime
 
-# Create our MCP server
-server = Server("workshop-mcp-server")
-
-# ============================================================================
-# 🛠️ TOOL 1: Hello World Tool
-# ============================================================================
-
-@server.list_tools()
-async def list_tools() -> List[Tool]:
-    """List all available tools"""
-    return [
-        Tool(
-            name="hello_world",
-            description="A simple hello world tool that greets the user",
-            inputSchema={
+class SimpleMCPServer:
+    """Simple MCP Server implementation"""
+    
+    def __init__(self):
+        self.tools = {
+            "hello_world": {
+                "description": "A simple hello world tool that greets the user",
+                "inputSchema": {
                 "type": "object",
                 "properties": {
                     "name": {
@@ -119,94 +105,156 @@ async def list_tools() -> List[Tool]:
                     }
                 }
             }
-        ),
-        Tool(
-            name="get_current_time",
-            description="Get the current date and time",
-            inputSchema={
+            },
+            "get_current_time": {
+                "description": "Get the current date and time",
+                "inputSchema": {
                 "type": "object",
                 "properties": {}
             }
-        ),
-        Tool(
-            name="calculate_simple",
-            description="Perform simple math calculations",
-            inputSchema={
+            },
+            "calculate": {
+                "description": "Perform basic mathematical calculations",
+                "inputSchema": {
                 "type": "object",
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "Math expression like '2 + 2' or '10 * 5'"
+                            "description": "Mathematical expression to evaluate"
                     }
                 },
                 "required": ["expression"]
             }
-        )
-    ]
-
-# ============================================================================
-# 🎯 TOOL IMPLEMENTATIONS
-# ============================================================================
-
-@server.call_tool()
-async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+            }
+        }
+    
+    async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle incoming MCP requests"""
+        
+        method = request.get("method")
+        request_id = request.get("id")
+        
+        if method == "initialize":
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {}
+                    },
+                    "serverInfo": {
+                        "name": "workshop-mcp-server",
+                        "version": "1.0.0"
+                    }
+                }
+            }
+        
+        elif method == "tools/list":
+            tools_list = []
+            for name, tool_info in self.tools.items():
+                tools_list.append({
+                    "name": name,
+                    "description": tool_info["description"],
+                    "inputSchema": tool_info["inputSchema"]
+                })
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "tools": tools_list
+                }
+            }
+        
+        elif method == "tools/call":
+            tool_name = request.get("params", {}).get("name")
+            arguments = request.get("params", {}).get("arguments", {})
+            
+            result = await self.execute_tool(tool_name, arguments)
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": result
+                        }
+                    ]
+                }
+            }
+        
+        else:
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Method not found: {method}"
+                }
+            }
+    
+    async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
     """Execute the requested tool"""
     
-    if name == "hello_world":
+        if tool_name == "hello_world":
         name = arguments.get("name", "there")
-        message = f"Hello {name}! 👋 Welcome to your first MCP server!"
-        return [TextContent(type="text", text=message)]
-    
-    elif name == "get_current_time":
-        from datetime import datetime
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        message = f"🕐 Current time: {current_time}"
-        return [TextContent(type="text", text=message)]
-    
-    elif name == "calculate_simple":
+            return f"Hello {name}! 👋 Welcome to your first MCP server!"
+        
+        elif tool_name == "get_current_time":
+            now = datetime.now()
+            return f"🕐 Current time: {now.strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        elif tool_name == "calculate":
         expression = arguments.get("expression", "")
         try:
-            # Simple and safe evaluation
+                # Simple and safe evaluation for basic math
             allowed_chars = set('0123456789+-*/.() ')
             if not all(c in allowed_chars for c in expression):
-                return [TextContent(type="text", text="❌ Error: Only basic math operations allowed")]
+                    return "❌ Error: Only basic mathematical expressions are allowed"
             
             result = eval(expression)
-            message = f"🧮 {expression} = {result}"
-            return [TextContent(type="text", text=message)]
+                return f"🧮 {expression} = {result}"
         except Exception as e:
-            return [TextContent(type="text", text=f"❌ Error calculating {expression}: {str(e)}")]
+                return f"❌ Error calculating '{expression}': {str(e)}"
     
     else:
-        return [TextContent(type="text", text=f"❌ Unknown tool: {name}")]
-
-# ============================================================================
-# 🚀 SERVER STARTUP
-# ============================================================================
+            return f"❌ Unknown tool: {tool_name}"
+    
+    async def run(self):
+        """Run the MCP server"""
+        print("🚀 Starting Simple MCP Server...", file=sys.stderr)
+        print("📋 Available tools:", file=sys.stderr)
+        for name, tool_info in self.tools.items():
+            print(f"   - {name}: {tool_info['description']}", file=sys.stderr)
+        print("🔌 Server ready for connections!", file=sys.stderr)
+        
+        while True:
+            try:
+                # Read request from stdin
+                line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
+                if not line:
+                    break
+                
+                request = json.loads(line.strip())
+                response = await self.handle_request(request)
+                
+                # Send response to stdout
+                print(json.dumps(response))
+                sys.stdout.flush()
+                
+            except json.JSONDecodeError:
+                continue
+            except Exception as e:
+                print(f"Error: {e}", file=sys.stderr)
+                break
 
 async def main():
-    """Start the MCP server"""
-    print("🚀 Starting MCP Server...", file=sys.stderr)
-    print("📋 Available tools:", file=sys.stderr)
-    print("   - hello_world: Greet the user", file=sys.stderr)
-    print("   - get_current_time: Get current time", file=sys.stderr)
-    print("   - calculate_simple: Do math calculations", file=sys.stderr)
-    print("🔌 Server ready for connections!", file=sys.stderr)
-    
-    # Start the server
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="workshop-mcp-server",
-                server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=None,
-                    experimental_capabilities={}
-                )
-            )
-        )
+    """Main entry point"""
+    server = SimpleMCPServer()
+    await server.run()
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -220,7 +268,7 @@ print("✅ Created workshop_mcp_server.py")
 print("📋 This server provides 3 simple tools:")
 print("   - hello_world: Greet the user")
 print("   - get_current_time: Get current time")
-print("   - calculate_simple: Do math calculations")
+print("   - calculate: Perform math calculations")
 
 # ============================================================================
 # 🧪 TESTING YOUR MCP SERVER
@@ -230,63 +278,222 @@ print("\n" + "=" * 60)
 print("🧪 Testing Your MCP Server")
 print("=" * 60)
 
-print("""
-🧪 To test your MCP server:
+# Create a test client
+test_client_code = '''#!/usr/bin/env python3
+"""
+🧪 MCP Server Test Client
+"""
 
-1. **Start the server** (in a new terminal):
-   python workshop_mcp_server.py
+import asyncio
+import subprocess
+import json
 
-2. **Test with curl** (in another terminal):
-   curl -X POST http://localhost:8000/call_tool \\
-        -H "Content-Type: application/json" \\
-        -d '{"name": "hello_world", "arguments": {"name": "Alice"}}'
+async def test_mcp_server():
+    """Test the MCP server functionality"""
+    
+    print("🧪 Testing MCP Server")
+    print("=" * 50)
+    
+    try:
+        # Start the MCP server process
+        print("🚀 Starting MCP server...")
+        process = subprocess.Popen(
+            ['python3', 'workshop_mcp_server.py'],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        print("✅ MCP server started!")
+        
+        # Wait a moment for server to start
+        await asyncio.sleep(1)
+        
+        # Send initialization request
+        init_request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "test-client",
+                    "version": "1.0.0"
+                }
+            }
+        }
+        
+        print("📤 Sending initialization request...")
+        process.stdin.write(json.dumps(init_request) + "\\n")
+        process.stdin.flush()
+        
+        # Read response
+        response_line = process.stdout.readline()
+        if response_line:
+            response = json.loads(response_line.strip())
+            server_name = response.get('result', {}).get('serverInfo', {}).get('name', 'Unknown')
+            print(f"📥 Connected to: {server_name}")
+        
+        # Send list tools request
+        list_tools_request = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list"
+        }
+        
+        print("📤 Requesting available tools...")
+        process.stdin.write(json.dumps(list_tools_request) + "\\n")
+        process.stdin.flush()
+        
+        # Read tools response
+        response_line = process.stdout.readline()
+        if response_line:
+            response = json.loads(response_line.strip())
+            tools = response.get('result', {}).get('tools', [])
+            print(f"📋 Available tools ({len(tools)}):")
+            for tool in tools:
+                print(f"   - {tool.get('name', 'Unknown')}: {tool.get('description', 'No description')}")
+        
+        # Test hello_world tool
+        hello_request = {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "hello_world",
+                "arguments": {"name": "Workshop Participant"}
+            }
+        }
+        
+        print("\\n📤 Testing hello_world tool...")
+        process.stdin.write(json.dumps(hello_request) + "\\n")
+        process.stdin.flush()
+        
+        # Read hello response
+        response_line = process.stdout.readline()
+        if response_line:
+            response = json.loads(response_line.strip())
+            result = response.get('result', {}).get('content', [])
+            if result:
+                print(f"📥 Result: {result[0].get('text', 'No text')}")
+        
+        # Test calculate tool
+        calc_request = {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": "calculate",
+                "arguments": {"expression": "15 * 8 + 3"}
+            }
+        }
+        
+        print("\\n📤 Testing calculate tool...")
+        process.stdin.write(json.dumps(calc_request) + "\\n")
+        process.stdin.flush()
+        
+        # Read calc response
+        response_line = process.stdout.readline()
+        if response_line:
+            response = json.loads(response_line.strip())
+            result = response.get('result', {}).get('content', [])
+            if result:
+                print(f"📥 Result: {result[0].get('text', 'No text')}")
+        
+        # Test get_current_time tool
+        time_request = {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": {
+                "name": "get_current_time",
+                "arguments": {}
+            }
+        }
+        
+        print("\\n📤 Testing get_current_time tool...")
+        process.stdin.write(json.dumps(time_request) + "\\n")
+        process.stdin.flush()
+        
+        # Read time response
+        response_line = process.stdout.readline()
+        if response_line:
+            response = json.loads(response_line.strip())
+            result = response.get('result', {}).get('content', [])
+            if result:
+                print(f"📥 Result: {result[0].get('text', 'No text')}")
+        
+        print("\\n🎉 All MCP server tests passed!")
+        
+        # Clean up
+        process.terminate()
+        process.wait()
+        
+    except Exception as e:
+        print(f"❌ Error testing MCP server: {e}")
+        return False
+    
+    return True
 
-3. **Or use the MCP client**:
-   python -c "
-   from mcp.client.stdio import stdio_client
-   import asyncio
-   
-   async def test():
-       async with stdio_client(['python', 'workshop_mcp_server.py']) as client:
-           tools = await client.list_tools()
-           print('Available tools:', tools)
-   
-   asyncio.run(test())
-   "
-""")
+if __name__ == "__main__":
+    asyncio.run(test_mcp_server())
+'''
+
+# Save the test client code
+with open("test_mcp_server.py", "w") as f:
+    f.write(test_client_code)
+
+print("✅ Created test_mcp_server.py")
+print("🧪 To test your MCP server, run:")
+print("   python3 test_mcp_server.py")
 
 # ============================================================================
-# 🔌 CONNECTING FROM VS CODE/CURSOR
+# 🔌 CONNECTING TO VS CODE/CURSOR
 # ============================================================================
 
 print("\n" + "=" * 60)
-print("🔌 Connecting from VS Code/Cursor")
+print("🔌 Connecting to VS Code/Cursor")
 print("=" * 60)
 
 print("""
-🔌 To connect your MCP server to VS Code/Cursor:
+🎯 To use your MCP server with VS Code/Cursor:
 
 1. **Install MCP Extension**:
-   - VS Code: Search for "MCP" in extensions
-   - Cursor: Should have MCP support built-in
+   - Open VS Code/Cursor
+   - Go to Extensions (Cmd+Shift+X)
+   - Search for "MCP" or "Model Context Protocol"
+   - Install the official MCP extension
 
 2. **Configure MCP Client**:
-   Create ~/.config/mcp/clients.json:
+   - Open Command Palette (Cmd+Shift+P)
+   - Type "MCP: Configure"
+   - Add your server configuration:
+   
+   ```json
    {
-     "workshop-server": {
-       "command": "python",
-       "args": ["/path/to/your/workshop_mcp_server.py"],
+     "mcpServers": {
+       "workshop-mcp-server": {
+         "command": "python3",
+         "args": ["/full/path/to/workshop_mcp_server.py"],
        "env": {}
+       }
      }
    }
+   ```
 
-3. **Restart VS Code/Cursor**:
-   - The MCP server should now be available
-   - You can ask the AI to use your custom tools!
+3. **Connect to Server**:
+   - Open Command Palette (Cmd+Shift+P)
+   - Type "MCP: Connect to Server"
+   - Select "workshop-mcp-server"
+   - You should see "Connected" status
 
-4. **Test the Connection**:
-   Ask: "What time is it?" or "Calculate 15 * 3"
-   The AI should use your MCP server tools!
+4. **Use MCP Tools**:
+   - In any chat/assistant panel, you can now use:
+     - `@hello_world` - Greet with custom name
+     - `@get_current_time` - Get current time
+     - `@calculate` - Perform math calculations
 """)
 
 # ============================================================================
@@ -294,94 +501,66 @@ print("""
 # ============================================================================
 
 print("\n" + "=" * 60)
-print("🎯 HANDS-ON EXERCISE")
+print("🎯 Hands-On Exercise")
 print("=" * 60)
 
 print("""
 🎯 Your Turn! Try these exercises:
 
-1. **Run Your Server**:
-   - Start the MCP server in a terminal
-   - Test it with simple requests
-   - Make sure it responds correctly
+1. **Test the MCP Server**:
+   - Run: `python3 test_mcp_server.py`
+   - Verify all tools work correctly
 
-2. **Add a New Tool**:
-   - Create a tool that returns random facts
-   - Add a tool that converts temperatures
-   - Build a tool that gives motivational quotes
+2. **Add a Custom Tool**:
+   - Edit `workshop_mcp_server.py`
+   - Add a new tool (e.g., "get_weather", "random_quote")
+   - Test your new tool
 
 3. **Connect to VS Code/Cursor**:
-   - Set up the MCP client configuration
-   - Restart your editor
-   - Ask the AI to use your tools
+   - Follow the configuration steps above
+   - Use the tools in your AI assistant
 
-4. **Debug and Improve**:
-   - Add error handling to your tools
-   - Improve the tool descriptions
-   - Add input validation
+4. **Create Your Own Client**:
+   - Write a Python script that uses your MCP server
+   - Build a simple application with MCP integration
 
 💡 Tips:
-- Start simple and build up
-- Test each tool individually
-- Check the MCP documentation for more features
-- Don't worry about perfection - focus on learning!
+- Keep tools simple and focused
+- Always validate input parameters
+- Handle errors gracefully
+- Test thoroughly before deploying
 """)
 
 # ============================================================================
-# 🔍 ADVANCED MCP FEATURES
+# 📝 PART 3 SUMMARY
 # ============================================================================
 
 print("\n" + "=" * 60)
-print("🔍 Advanced MCP Features")
-print("=" * 60)
-
-print("""
-🔍 Once you're comfortable with basics, explore:
-
-1. **Resources**: Provide access to files, databases, APIs
-2. **Prompts**: Create reusable prompt templates
-3. **Logging**: Add structured logging to your server
-4. **Authentication**: Secure your server with proper auth
-5. **Streaming**: Handle long-running operations
-6. **Error Handling**: Graceful error handling and recovery
-
-🚀 **Real-World Examples**:
-- File system access (read/write files)
-- Database queries (SQL, NoSQL)
-- API integrations (weather, news, etc.)
-- System monitoring (CPU, memory, processes)
-- Custom business logic tools
-""")
-
-# ============================================================================
-# 📝 SUMMARY
-# ============================================================================
-
-print("\n" + "=" * 60)
-print("📝 PART 3 SUMMARY")
+print("📝 Part 3 Summary")
 print("=" * 60)
 
 print("""
 ✅ What We Accomplished:
-- Learned what MCP is and why it's useful
-- Created a simple MCP server with 3 tools
-- Understood how to connect from VS Code/Cursor
-- Explored advanced MCP capabilities
+- Created a working MCP server with 3 tools
+- Implemented proper request/response handling
+- Added error handling and input validation
+- Created a test client to verify functionality
+- Learned how to connect to VS Code/Cursor
 
 🔑 Key Concepts:
-- MCP Server: Provides tools and resources
-- MCP Client: Connects to servers (VS Code, etc.)
-- Tools: Functions the AI can call
-- Resources: Data the AI can access
+- MCP Protocol: Standard for AI-tool communication
+- JSON-RPC: Communication protocol used by MCP
+- Tool Definition: Schema for tool inputs and outputs
+- Client Integration: How to connect MCP servers to applications
 
 🚀 Next Steps:
-- Run your server and test it
-- Connect it to VS Code/Cursor
-- Build more sophisticated tools
-- Explore the MCP ecosystem
+- Add more sophisticated tools to your server
+- Integrate with your favorite AI assistants
+- Build custom applications using MCP
+- Explore advanced MCP features and capabilities
+
+🎉 Congratulations! You've built your first MCP server!
 """)
 
 print("\n🎉 Part 3 Complete! You now have a working MCP server!")
-print("\n🌟 **WORKSHOP COMPLETE!** 🌟")
-print("You've learned LLM basics, agents, and MCP servers!")
-print("Time to build something amazing! 🚀")
+print("🚀 Ready to integrate with AI assistants and build amazing tools!")
