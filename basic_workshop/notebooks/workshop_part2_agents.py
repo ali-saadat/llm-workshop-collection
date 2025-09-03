@@ -16,6 +16,10 @@ from langchain.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, AIMessage
 from langchain.memory import ConversationBufferMemory
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # ============================================================================
 # 🔧 SECTION 2: LLM AGENTS WITH LANGCHAIN
@@ -101,9 +105,9 @@ print("=" * 60)
 
 # Configure the LLM (using your endpoint)
 llm = ChatOpenAI(
-    openai_api_base="https://yylh5vmmm0.execute-api.eu-central-1.amazonaws.com/prod",
-    openai_api_key="ALI-CLASS-2025",
-    model_name="gpt-3.5-turbo",
+    base_url=os.getenv("BASE_URL", "https://yylh5vmmm0.execute-api.eu-central-1.amazonaws.com/prod/v1"),
+    api_key=os.getenv("API_KEY", "ALI-CLASS-2025"),
+    model="anthropic.claude-3-haiku-20240307-v1:0",
     temperature=0.1
 )
 

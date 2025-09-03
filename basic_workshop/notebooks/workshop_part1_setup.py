@@ -20,9 +20,12 @@ from typing import Dict, Any
 print("🎯 LLM WORKSHOP - PART 1: Setup and LLM Hello World")
 print("=" * 60)
 
-# Your API configuration
-BASE_URL = "https://yylh5vmmm0.execute-api.eu-central-1.amazonaws.com/prod"
-API_KEY = "ALI-CLASS-2025"
+# Load from environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
+BASE_URL = os.getenv("BASE_URL", "https://yylh5vmmm0.execute-api.eu-central-1.amazonaws.com/prod/v1")
+API_KEY = os.getenv("API_KEY", "ALI-CLASS-2025")
 
 # Headers for authentication
 headers = {
